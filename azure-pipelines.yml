@@ -1,0 +1,104 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+parameters:
+  - name: buildType
+    type: string
+    default: 'alpha'
+    displayName: 'Build Type'
+    values:
+      - 'alpha'
+      - 'beta'
+      - 'rc'
+      - 'release'
+  - name: buildTarget
+    default: ''
+    type: string
+    displayName: "Build Target"
+  - name: buildTargetPrefix
+    type: string
+    default: 'Viva.Enterprise.'
+    displayName: 'Build Target Prefix'
+  - name: versionSuffixNumber
+    type: string
+    default: 'auto'
+    displayName: "Version Suffix Number"
+    values:
+      - 'auto'
+      - 'devops build number'
+  
+
+trigger: none
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+    - build
+    - README.md
+
+pool:
+  vmImage: windows-latest
+
+variables:
+  pBuildType: ${{parameters.buildType}}
+  pSolutionName: ${{parameters.buildTarget}}
+  pVersionSuffixNumber: ${{parameters.versionSuffixNumber}}
+  
+  buildType: $[coalesce(variables.pBuildType, 'alpha')]
+  solutionName: $[coalesce(variables.pSolutionName, '')]
+  versionSuffixNumber: $[coalesce(variables.pVersionSuffixNumber, '')]
+  
+  packageVersionSuffix: ''
+  isRelease: $[eq(variables.pBuildType, 'release')]
+  isPullRequest: $[startsWith(variables['Build.SourceBranch'], 'refs/pull/')]
+  isMainBranch: $[eq(variables['Build.SourceBranch'], 'refs/heads/main')]
+
+steps:
+- powershell: |
+    if ("$(isPullRequest)" -eq "True")
+    {
+      $target = "$(System.PullRequest.SourceBranch)".split('/')[0]
+      Write-Host "##vso[task.setvariable variable=solutionName;]$target"
+    }
+    if ("$(isRelease)" -eq 'False')
+    {
+      if ("$(versionSuffixNumber)" -eq "devops build number")
+      {
+        Write-Host "##vso[task.setvariable variable=packageVersionSuffix;]$(Build.BuildNumber)"
+      }
+      else
+      {
+        Write-Host "##vso[task.setvariable variable=packageVersionSuffix;]auto"
+      }
+    }
+    if (("$(isRelease)" -eq "True") -and ("$(isMainBranch)" -eq "False"))
+    {
+      Write-Host "Release build is only supported on main branch commits."
+      exit 1
+    }
+  displayName: "Setup variables and validate"
+
+- powershell: |
+    Write-Host "Source Branch: $(Build.SourceBranch)"
+    if ("$(isPullRequest)" -eq "True")
+    {
+      Write-Host "Pull Request Source: $(System.PullRequest.SourceBranch)" 
+      Write-Host "Pull Request Target: $(System.PullRequest.TargetBranch)"
+    }
+    Write-Host "Solution: $(solutionName)"
+    Write-Host "VersionSuffix: $(packageVersionSuffix)"
+    Write-Host "BuildType: $(buildType)"
+    Write-Host "IsRelease: $(isRelease)"
+    Write-Host "IsPullRequest: $(isPullRequest)"
+    Write-Host "IsMainBranch: $(isMainBranch)"
+  displayName: 'Log pipeline configuration'
+
+- script: echo Release build step
+  condition: eq(variables.isRelease, 'True')
+
+- script: echo Alpha build step
+  condition: eq(variables.isRelease, 'False')
+
