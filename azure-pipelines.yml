@@ -30,17 +30,7 @@ parameters:
   
 
 trigger: none
-pr:
-  branches:
-    include:
-      - main
-  paths:
-    exclude:
-    - build
-    - README.md
 
-pool:
-  vmImage: windows-latest
 
 variables:
   pBuildType: ${{parameters.buildType}}
